@@ -33,6 +33,7 @@ impl SocketServer {
     
     fn create_app() -> axum::Router {
        axum::Router::new()
+           .route("/", any(Self::ws_handler))
     }
 
     pub async fn run(self) {
@@ -41,7 +42,7 @@ impl SocketServer {
             .expect("unable to bind websocket");
         let app = Self::create_app();
         info!("Socket server bound to ws://0.0.0.0:{}", self.port);
-        axum::serve(listener, app).await.expect("Error starting the websocket service")
+        axum::serve(listener, app.into_make_service_with_connect_info::<SocketAddr>()).await.expect("Error starting the websocket service")
     }
 
     async fn ws_handler(ws: WebSocketUpgrade, ConnectInfo(address): ConnectInfo<SocketAddr>) -> impl IntoResponse {
