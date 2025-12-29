@@ -48,7 +48,9 @@ impl Server {
     pub async fn run(self) {
         let app = Self::create_app();       
         let listener = tokio::net::TcpListener::bind(format!("0.0.0.0:{}", self.port)).await.expect("failed to bind server");
+
         info!("Server Bound on http://0.0.0.0:{}, to see if it is fully up go to http://0.0.0.0:{}/api", self.port, self.port);
+
         let _instance = axum::serve(listener, app).await.expect("failed to start server.");
     }
 
