@@ -6,7 +6,6 @@ use serde::{Serialize, Deserialize};
 use axum::{extract::{ConnectInfo, WebSocketUpgrade, ws::{CloseFrame, WebSocket, close_code::UNSUPPORTED}}, response::IntoResponse, routing::any};
 use axum::extract::ws::Message;
 use log::{info, warn, trace};
-use futures_util::{SinkExt, stream::StreamExt};
 use std::sync::Arc;
 
 const MAX_STUPID_MESSAGE: u8 = 10; // to prevent useless data abuse
