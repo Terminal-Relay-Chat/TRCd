@@ -1,4 +1,5 @@
 use axum::{Json, http::StatusCode, response::IntoResponse, routing::{get, post}};
+use axum::extract::{Path};
 use log::{info, warn};
 use serde_json::json;
 
@@ -57,6 +58,7 @@ impl Server {
     fn create_app() -> axum::Router {
         axum::Router::new()
             .route("/api", get(Self::health_check))
+            .route("/api/messages/{channel_name}", post(Self::new_message))
     }
 
     async fn health_check() -> impl IntoResponse {
@@ -64,6 +66,13 @@ impl Server {
             "status": "ok",
             "message": "TRCd Server is running."
         }))
+    }
+    
+    async fn new_message(Path(channel_name): Path<String>, body: String) -> Result<(), impl IntoResponse> {
+        if body.is_empty() {return Err(ApiError::BadRequest("body length cannot be 0".to_string()))}
+        info!("Post to /api/messages/{channel_name} value: {}", body);
+
+        Ok(())
     }
 
 
