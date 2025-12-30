@@ -17,12 +17,14 @@ use crate::server;
 const MAX_STUPID_MESSAGE: u8 = 10; // to prevent useless data abuse
 
 #[derive(Debug, Serialize, PartialEq)]
+#[allow(dead_code)]
 enum UpdateType {
     MESSAGE,
     SYSTEM, // SYSTEM is for commands or responses to requests from a client
     ERROR,
 }
 
+#[allow(dead_code)]
 enum UserActiveChannel {
     String(String),
     None,
@@ -32,9 +34,11 @@ enum UserActiveChannel {
 #[derive(Serialize, Debug)]
 struct SocketMessage {
     pub message_type: UpdateType,
-    pub content: String
+    pub content: String,
+    pub sender: Option<MessageSender>
 }
 
+#[allow(dead_code)]
 #[derive(Debug, Clone)]
 pub struct ChannelMessage {
     pub channel: String,
@@ -42,7 +46,10 @@ pub struct ChannelMessage {
     pub sender: MessageSender 
 }
 
-#[derive(Debug, Clone)]
+#[allow(dead_code)]
+#[derive(Debug, Clone, Serialize)]
+/// **PUBLIC** values of a given sender, DO NOT STORE ANY PRIVATE INFO LIKE
+/// PASSWORDS!!!!!!!!!!111!!1
 pub struct MessageSender {
     pub name: String,
     pub handle: String,
@@ -75,7 +82,7 @@ impl SocketServer {
 
         let server = server::Server::new(3000);
         // start the server (yes, this is cursed.) with a broadcast element
-        tokio::spawn(async {server.run(shared_tx).await});
+        tokio::spawn(async {server.run(shared_tx).await; panic!("API failed. See logs")});
 
         axum::Router::new()
             .route("/", any(Self::ws_handler))
@@ -83,7 +90,7 @@ impl SocketServer {
 
     }
 
-    pub async fn run(self, events: UnboundedReceiver<ChannelMessage>) {
+    pub async fn run(self) {
         let listener = tokio::net::TcpListener::bind(format!("0.0.0.0:{}", self.port))
             .await
             .expect("unable to bind websocket");
@@ -101,9 +108,19 @@ impl SocketServer {
         let rx = state.tx.subscribe();
         let tx = Arc::new(state.tx);
 
-        async fn handle_sock_recv(ws_rx: Arc<Mutex<SplitStream<WebSocket>>>, ws_tx: Arc<Mutex<SplitSink<WebSocket, Message>>>, ip: &SocketAddr, tx: Arc<broadcast::Sender<ChannelMessage>>) -> Result<(), Box<dyn Error>> {
+        // active channel filters messages server side
+        let active_channel = Arc::new(Mutex::new(UserActiveChannel::None));
+        
+        /// function to handle incoming messages from a websocket. See handle_sock_send() for the
+        /// broadcasting to websocket
+        async fn handle_sock_recv(
+            ws_rx: Arc<Mutex<SplitStream<WebSocket>>>,
+            ws_tx: Arc<Mutex<SplitSink<WebSocket, Message>>>,
+            ip: &SocketAddr,
+            tx: Arc<broadcast::Sender<ChannelMessage>>,
+            active_channel: Arc<Mutex<UserActiveChannel>>
+        ) -> Result<(), Box<dyn Error>> {
             let mut stupid_message_counter: u8 = 0; // prevent useless message abuse
-            let mut active_channel = UserActiveChannel::None;
 
             let system_user = MessageSender {
                 name: String::from("system"),
@@ -154,14 +171,36 @@ impl SocketServer {
                 }
             }
         }
-
-        async fn handle_sock_send(ws_tx: Arc<Mutex<SplitSink<WebSocket, Message>>>, mut rx: Receiver<ChannelMessage>) -> Result<(), Box<dyn std::error::Error>> {
+        
+        /// Function to handle the sending of messages to a websocket recieved from a broadcast channel.
+        async fn handle_sock_send(
+            ws_tx: Arc<Mutex<SplitSink<WebSocket, Message>>>,
+            mut rx: Receiver<ChannelMessage>,
+            active_channel: Arc<Mutex<UserActiveChannel>>
+        ) -> Result<(), Box<dyn std::error::Error>> {
             loop {
+                // wait for new channel messages (NOT SOCKET ONES, see handle_sock_recv() above for
+                // that.)
                 let message = rx.recv().await;
                 match message {
                     Ok(m) => {
-                        info!("this is so cursed");
-                        ws_tx.lock().await.send(Message::Text(format!("New message: {}", m.content).into())).await?;
+                        // see if the message is from a relevant channel, if it isn't: continue to
+                        // the next iteration of the loop
+                        match &*active_channel.lock().await {
+                            UserActiveChannel::String(s) => {
+                                if s != "" { continue; }
+                            },
+                            UserActiveChannel::None => { continue;},
+                            UserActiveChannel::All => {/* do nothing to filter */},
+                        }
+                        // if the message is relevant send it to the user
+                        let update = SocketMessage {
+                            message_type: UpdateType::MESSAGE,
+                            content: m.content,
+                            sender: None
+                        };
+                        let update = serde_json::to_string(&update)?;
+                        ws_tx.lock().await.send(Message::Text(update.into())).await?;
                     },
                     Err(_) => {
                         warn!("caught a channel recv error. Closing connection to reduce load.");
@@ -170,15 +209,28 @@ impl SocketServer {
                 }
             }
         }
-
+        
+        // This is futures_util black magic. Do not mess with this if you want to keep your sanity.
+        // It will break *a lot* if you do.
         let (ws_tx, ws_rx) = sock.split();
         let ws_rx = Arc::new(Mutex::new(ws_rx));
         let ws_tx = Arc::new(Mutex::new(ws_tx));
+
+        // handle messages from the socket and updates from the broadcast group
         tokio::select! {
-            _ = handle_sock_recv(ws_rx.clone(), ws_tx.clone(), &ip, tx) => {},
-            _ = handle_sock_send(ws_tx.clone(), rx) => {}
+            res = handle_sock_recv(ws_rx.clone(), ws_tx.clone(), &ip, tx, active_channel.clone()) => {
+                if let Err(e) = res {
+                    warn!("{:?}", e);
+                }
+            },
+            res = handle_sock_send(ws_tx.clone(), rx, active_channel.clone()) => {
+                if let Err(e) = res {
+                    warn!("{:?}", e)
+                }
+            }
         }
-        info!("client disconnected")
+        info!("client disconnected");
+        panic!("socket server died. See logs")
     }
 
 }

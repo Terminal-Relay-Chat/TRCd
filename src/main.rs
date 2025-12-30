@@ -11,8 +11,8 @@ async fn main() {
         .init();
     
     let socks = socket_server::SocketServer::new(3001);
-    let (event_trigger, events) = unbounded_channel::<socket_server::ChannelMessage>();
     // bizzarly, I have to start the api from the socket server because of some shared state. It's
-    // weird. (see create_app()). 
-    socks.run(events).await;
+    // weird. (see create_app()). This is to share a broadcast tx instance to the API so that users
+    // can send new messages in a more "secure" fassion.
+    socks.run().await;
 }
