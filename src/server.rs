@@ -2,6 +2,9 @@ use axum::{Json, http::StatusCode, response::IntoResponse, routing::{get, post}}
 use axum::extract::{Path};
 use log::{info, warn};
 use serde_json::json;
+use tokio::sync::broadcast::Sender;
+
+use crate::socket_server::ChannelMessage;
 
 #[derive(Debug)]
 pub enum ApiError {
@@ -46,7 +49,7 @@ impl Server {
         }
     }
 
-    pub async fn run(self) {
+    pub async fn run(self, tx: Sender<ChannelMessage>) {
         let app = Self::create_app();       
         let listener = tokio::net::TcpListener::bind(format!("0.0.0.0:{}", self.port)).await.expect("failed to bind server");
 
@@ -70,7 +73,7 @@ impl Server {
     
     async fn new_message(Path(channel_name): Path<String>, body: String) -> Result<(), impl IntoResponse> {
         if body.is_empty() {return Err(ApiError::BadRequest("body length cannot be 0".to_string()))}
-        info!("Post to /api/messages/{channel_name} value: {}", body);
+        
 
         Ok(())
     }

@@ -7,7 +7,9 @@ use axum::{extract::{ConnectInfo, State, WebSocketUpgrade, ws::{CloseFrame, WebS
 use axum::extract::ws::Message;
 use log::{info, warn, trace};
 use std::sync::Arc;
-use tokio::sync::broadcast::{self, Receiver};
+use tokio::sync::{broadcast::{self, Receiver}, mpsc::UnboundedReceiver};
+
+use crate::server;
 
 const MAX_STUPID_MESSAGE: u8 = 10; // to prevent useless data abuse
 
@@ -62,9 +64,15 @@ impl SocketServer {
     
     fn create_app() -> axum::Router {
         let (tx, _) = broadcast::channel::<ChannelMessage>(1024);
+        let shared_tx = tx.clone(); // for the API (server), moved below
+
         let state = AppState { 
             tx: tx
         };
+
+        let server = server::Server::new(3000);
+        // start the server (yes, this is cursed.) with a broadcast element
+        tokio::spawn(async {server.run(shared_tx).await});
 
         axum::Router::new()
             .route("/", any(Self::ws_handler))
@@ -72,13 +80,12 @@ impl SocketServer {
 
     }
 
-    pub async fn run(self) {
+    pub async fn run(self, events: UnboundedReceiver<ChannelMessage>) {
         let listener = tokio::net::TcpListener::bind(format!("0.0.0.0:{}", self.port))
             .await
             .expect("unable to bind websocket");
         let app = Self::create_app();
         info!("Socket server bound to ws://0.0.0.0:{}", self.port);
-
         axum::serve(listener, app.into_make_service_with_connect_info::<SocketAddr>()).await.expect("Error starting the websocket service")
     }
 
