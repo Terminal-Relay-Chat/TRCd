@@ -2,12 +2,15 @@
 
 use std::{error::Error, net::SocketAddr};
 
+use futures_util::{StreamExt, stream::SplitStream};
 use serde::{Serialize, Deserialize};
 use axum::{extract::{ConnectInfo, State, WebSocketUpgrade, ws::{CloseFrame, WebSocket, close_code::UNSUPPORTED}}, response::IntoResponse, routing::any};
 use axum::extract::ws::Message;
 use log::{info, warn, trace};
 use std::sync::Arc;
 use tokio::sync::{broadcast::{self, Receiver}, mpsc::UnboundedReceiver};
+use futures_util::stream::SplitSink;
+use futures_util::SinkExt;
 
 use crate::server;
 
@@ -28,22 +31,22 @@ enum UserActiveChannel {
 
 #[derive(Serialize, Debug)]
 struct SocketMessage {
-    message_type: UpdateType,
-    content: String
+    pub message_type: UpdateType,
+    pub content: String
 }
 
 #[derive(Debug, Clone)]
 pub struct ChannelMessage {
-    channel: String,
-    content: String,
-    sender: MessageSender 
+    pub channel: String,
+    pub content: String,
+    pub sender: MessageSender 
 }
 
 #[derive(Debug, Clone)]
 pub struct MessageSender {
-    name: String,
-    handle: String,
-    provider: String
+    pub name: String,
+    pub handle: String,
+    pub provider: String
 }
 
 
@@ -93,12 +96,12 @@ impl SocketServer {
         ws.on_upgrade(move |socket| Self::handle_socket(socket, address, State(state)))
     }
 
-    async fn handle_socket(mut sock: WebSocket, ip: SocketAddr, State(state): State<AppState>) {
+    async fn handle_socket(sock: WebSocket, ip: SocketAddr, State(state): State<AppState>) {
         use tokio::sync::Mutex;
         let rx = state.tx.subscribe();
         let tx = Arc::new(state.tx);
 
-        async fn handle_sock_recv(ws: Arc<Mutex<WebSocket>>, ip: &SocketAddr, tx: Arc<broadcast::Sender<ChannelMessage>>) -> Result<(), Box<dyn Error>> {
+        async fn handle_sock_recv(ws_rx: Arc<Mutex<SplitStream<WebSocket>>>, ws_tx: Arc<Mutex<SplitSink<WebSocket, Message>>>, ip: &SocketAddr, tx: Arc<broadcast::Sender<ChannelMessage>>) -> Result<(), Box<dyn Error>> {
             let mut stupid_message_counter: u8 = 0; // prevent useless message abuse
             let mut active_channel = UserActiveChannel::None;
 
@@ -110,7 +113,7 @@ impl SocketServer {
 
 
             loop {
-                let message = match ws.lock().await.recv().await {
+                let message = match ws_rx.lock().await.next().await {
                     Some(m) => m,
                     None => {return Ok(())}
                 };
@@ -120,12 +123,12 @@ impl SocketServer {
                 };
                 match message {
                     Message::Close(_) => {
-                        ws.lock().await.send(Message::Close(None)).await?;
+                        ws_tx.lock().await.send(Message::Close(None)).await?;
                         trace!("client sent close");
                         return Ok(())
                     },
                     Message::Ping(payload) => {
-                        ws.lock().await.send(Message::Pong(payload)).await?;
+                        ws_tx.lock().await.send(Message::Pong(payload)).await?;
                     },
                     Message::Text(t) => {
                         info!("Message from client: {}", t);
@@ -139,7 +142,7 @@ impl SocketServer {
                         stupid_message_counter += 1;
                         if stupid_message_counter > MAX_STUPID_MESSAGE {
                             warn!("Weird data exceeded threshold from ip: {}", *ip);
-                            ws.lock().await.send(Message::Close(Some(CloseFrame {
+                            ws_tx.lock().await.send(Message::Close(Some(CloseFrame {
                                 code: UNSUPPORTED,
                                 reason: "This server supports pings and text (utf-8 formatted).".into()
                             }))).await?;
@@ -152,12 +155,13 @@ impl SocketServer {
             }
         }
 
-        async fn handle_sock_send(ws: Arc<Mutex<WebSocket>>, mut rx: Receiver<ChannelMessage>) -> Result<(), Box<dyn std::error::Error>> {
+        async fn handle_sock_send(ws_tx: Arc<Mutex<SplitSink<WebSocket, Message>>>, mut rx: Receiver<ChannelMessage>) -> Result<(), Box<dyn std::error::Error>> {
             loop {
                 let message = rx.recv().await;
                 match message {
                     Ok(m) => {
-                        ws.lock().await.send(Message::Text(format!("New message: {}", m.content).into())).await?;
+                        info!("this is so cursed");
+                        ws_tx.lock().await.send(Message::Text(format!("New message: {}", m.content).into())).await?;
                     },
                     Err(_) => {
                         warn!("caught a channel recv error. Closing connection to reduce load.");
@@ -167,11 +171,12 @@ impl SocketServer {
             }
         }
 
-        
-        let ws = Arc::new(Mutex::new(sock));
+        let (ws_tx, ws_rx) = sock.split();
+        let ws_rx = Arc::new(Mutex::new(ws_rx));
+        let ws_tx = Arc::new(Mutex::new(ws_tx));
         tokio::select! {
-            _ = handle_sock_recv(ws.clone(), &ip, tx) => {},
-            _ = handle_sock_send(ws.clone(), rx) => {}
+            _ = handle_sock_recv(ws_rx.clone(), ws_tx.clone(), &ip, tx) => {},
+            _ = handle_sock_send(ws_tx.clone(), rx) => {}
         }
         info!("client disconnected")
     }

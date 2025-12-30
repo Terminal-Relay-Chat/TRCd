@@ -1,10 +1,10 @@
 use axum::{Json, http::StatusCode, response::IntoResponse, routing::{get, post}};
-use axum::extract::{Path};
+use axum::extract::{Path, State};
 use log::{info, warn};
 use serde_json::json;
 use tokio::sync::broadcast::Sender;
 
-use crate::socket_server::ChannelMessage;
+use crate::socket_server::{AppState, ChannelMessage};
 
 #[derive(Debug)]
 pub enum ApiError {
@@ -38,6 +38,11 @@ impl IntoResponse for ApiError {
     }
 }
 
+#[derive(Debug, Clone)]
+struct APIState {
+    tx: Sender<ChannelMessage>
+}
+
 pub struct Server {
     port: usize
 }
@@ -50,7 +55,7 @@ impl Server {
     }
 
     pub async fn run(self, tx: Sender<ChannelMessage>) {
-        let app = Self::create_app();       
+        let app = Self::create_app(&self, tx);       
         let listener = tokio::net::TcpListener::bind(format!("0.0.0.0:{}", self.port)).await.expect("failed to bind server");
 
         info!("Server Bound on http://0.0.0.0:{}, to see if it is fully up go to http://0.0.0.0:{}/api", self.port, self.port);
@@ -58,10 +63,16 @@ impl Server {
         let _instance = axum::serve(listener, app).await.expect("failed to start server.");
     }
 
-    fn create_app() -> axum::Router {
+    
+
+    fn create_app(&self, tx: Sender<ChannelMessage>) -> axum::Router {
+        let state = APIState {
+            tx: tx
+        };
         axum::Router::new()
             .route("/api", get(Self::health_check))
             .route("/api/messages/{channel_name}", post(Self::new_message))
+            .with_state(state)
     }
 
     async fn health_check() -> impl IntoResponse {
@@ -71,9 +82,20 @@ impl Server {
         }))
     }
     
-    async fn new_message(Path(channel_name): Path<String>, body: String) -> Result<(), impl IntoResponse> {
+    async fn new_message(State(state): State<APIState>, Path(channel_name): Path<String>, body: String) -> Result<(), impl IntoResponse> {
         if body.is_empty() {return Err(ApiError::BadRequest("body length cannot be 0".to_string()))}
-        
+        let system_user = crate::socket_server::MessageSender {
+                name: String::from("system"),
+                handle: String::from("system"),
+                provider: String::from("")
+        };
+        let message = ChannelMessage {
+            channel: channel_name, 
+            content: body,
+            sender: system_user
+        };
+
+        let _ = state.tx.send(message);
 
         Ok(())
     }
