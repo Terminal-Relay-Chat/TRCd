@@ -12,7 +12,7 @@ use tokio::sync::{broadcast::{self, Receiver}, mpsc::UnboundedReceiver};
 use futures_util::stream::SplitSink;
 use futures_util::SinkExt;
 
-use crate::server;
+use crate::backend::{self, server};
 
 const MAX_STUPID_MESSAGE: u8 = 10; // to prevent useless data abuse
 
@@ -24,6 +24,7 @@ enum UpdateType {
     ERROR,
 }
 
+#[derive(Debug, Serialize)]
 #[allow(dead_code)]
 enum UserActiveChannel {
     String(String),
@@ -96,7 +97,8 @@ impl SocketServer {
             .expect("unable to bind websocket");
         let app = Self::create_app();
         info!("Socket server bound to ws://0.0.0.0:{}", self.port);
-        axum::serve(listener, app.into_make_service_with_connect_info::<SocketAddr>()).await.expect("Error starting the websocket service")
+        axum::serve(listener, app.into_make_service_with_connect_info::<SocketAddr>()).await.expect("Error starting the websocket service");
+        panic!("Socket Server Died");
     }
 
     async fn ws_handler(ws: WebSocketUpgrade, ConnectInfo(address): ConnectInfo<SocketAddr>, State(state): State<AppState>) -> impl IntoResponse {
@@ -104,6 +106,7 @@ impl SocketServer {
     }
 
     async fn handle_socket(sock: WebSocket, ip: SocketAddr, State(state): State<AppState>) {
+        info!("Client connected from ip: {}", ip);
         use tokio::sync::Mutex;
         let rx = state.tx.subscribe();
         let tx = Arc::new(state.tx);
@@ -140,7 +143,7 @@ impl SocketServer {
                 };
                 match message {
                     Message::Close(_) => {
-                        ws_tx.lock().await.send(Message::Close(None)).await?;
+                        // don't send a close response because the client is already closed.
                         trace!("client sent close");
                         return Ok(())
                     },
@@ -148,12 +151,46 @@ impl SocketServer {
                         ws_tx.lock().await.send(Message::Pong(payload)).await?;
                     },
                     Message::Text(t) => {
-                        info!("Message from client: {}", t);
-                        tx.send(ChannelMessage {
-                            channel: "general".into(),
-                            content: t.to_string(),
-                            sender: system_user.clone() 
-                        })?;
+                        // any message from the client is expected to be to switch channels
+                        trace!("client switched channels");
+
+                        // make sure the message isn't bigger than the max channel name length
+                        // (measured in bytes) [to prevent lag and dos]
+                        if t.len() > backend::MAX_CHANNEL_NAME_LENGTH_BYTES {
+                            let error_response = serde_json::json!({
+                                "error": true,
+                                "content": format!(
+                                    "Channel name too long in bytes. Max is {}", 
+                                    backend::MAX_CHANNEL_NAME_LENGTH_BYTES
+                                    ),
+                                "value": Option::<UserActiveChannel>::None
+                            });
+                            ws_tx.lock().await
+                                .send(error_response.to_string().into())
+                                .await?;
+
+                            continue;
+                        }
+                        
+                        // change the channel based on input
+                        let mut lock = active_channel.lock().await;
+                        *lock = match t.as_str() {
+                            "ALL" => { UserActiveChannel::All },
+                            "NONE" => { UserActiveChannel::None },
+                            _ => {
+                                UserActiveChannel::String(t.to_string())
+                            }
+                        };
+
+                        // send a response to the user
+                        let success_response = serde_json::json!({
+                            "error": false,
+                            "content": "successfully changed channel",
+                            "value": Some(UserActiveChannel::String(t.to_string()))
+                        });
+                        ws_tx.lock().await
+                                .send(success_response.to_string().into())
+                                .await?;
                     },
                     _ => {
                         stupid_message_counter += 1;
@@ -187,8 +224,8 @@ impl SocketServer {
                         // see if the message is from a relevant channel, if it isn't: continue to
                         // the next iteration of the loop
                         match &*active_channel.lock().await {
-                            UserActiveChannel::String(s) => {
-                                if s != "" { continue; }
+                            UserActiveChannel::String(target) => {
+                                if *target != m.channel { continue; }
                             },
                             UserActiveChannel::None => { continue;},
                             UserActiveChannel::All => {/* do nothing to filter */},
@@ -229,8 +266,7 @@ impl SocketServer {
                 }
             }
         }
-        info!("client disconnected");
-        panic!("socket server died. See logs")
+        info!("client disconnected (ip: {})", ip);
     }
 
 }

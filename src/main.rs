@@ -1,8 +1,10 @@
 use tokio;
 use log::{warn, info};
 use tokio::sync::mpsc::unbounded_channel;
-mod server;
-mod socket_server;
+
+mod backend;
+use backend::socket_server; // backend::server serves the api and is instantiated by the socket
+                            // server
 
 #[tokio::main]
 async fn main() {

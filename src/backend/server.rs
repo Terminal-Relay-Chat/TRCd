@@ -4,7 +4,7 @@ use log::{info, warn};
 use serde_json::json;
 use tokio::sync::broadcast::Sender;
 
-use crate::socket_server::{AppState, ChannelMessage};
+use crate::backend::socket_server::{AppState, ChannelMessage};
 
 #[derive(Debug)]
 pub enum ApiError {
