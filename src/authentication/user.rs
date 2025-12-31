@@ -18,8 +18,10 @@ pub enum UserPermissions {
 }
 
 /// the publicly available information for a given user that should be stored in state
-/// the password is stored in `token.rs`'s Claims struct
-#[derive(Debug, Serialize, Deserialize, Clone)]
+/// password is only used in the login process
+#[derive(Debug, Serialize, Deserialize, Clone, PartialEq)] // PartialEq for testing convinience.
+                                                           // See token.rs tests if you change
+                                                           // this.
 pub struct User {
     pub user_type: UserMode,
     pub permission_level: UserPermissions,
