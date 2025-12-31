@@ -13,6 +13,7 @@ use futures_util::stream::SplitSink;
 use futures_util::SinkExt;
 
 use crate::backend::{self, server};
+use crate::authentication::user::User;
 
 const MAX_STUPID_MESSAGE: u8 = 10; // to prevent useless data abuse
 
@@ -36,7 +37,7 @@ enum UserActiveChannel {
 struct SocketMessage {
     pub message_type: UpdateType,
     pub content: String,
-    pub sender: Option<MessageSender>
+    pub sender: Option<User>
 }
 
 #[allow(dead_code)]
@@ -44,19 +45,8 @@ struct SocketMessage {
 pub struct ChannelMessage {
     pub channel: String,
     pub content: String,
-    pub sender: MessageSender 
+    pub sender: User 
 }
-
-#[allow(dead_code)]
-#[derive(Debug, Clone, Serialize)]
-/// **PUBLIC** values of a given sender, DO NOT STORE ANY PRIVATE INFO LIKE
-/// PASSWORDS!!!!!!!!!!111!!1
-pub struct MessageSender {
-    pub name: String,
-    pub handle: String,
-    pub provider: String
-}
-
 
 #[derive(Debug, Clone)]
 pub struct AppState {
@@ -124,13 +114,8 @@ impl SocketServer {
             active_channel: Arc<Mutex<UserActiveChannel>>
         ) -> Result<(), Box<dyn Error>> {
             let mut stupid_message_counter: u8 = 0; // prevent useless message abuse
-
-            let system_user = MessageSender {
-                name: String::from("system"),
-                handle: String::from("system"),
-                provider: String::from("")
-            };
-
+            
+            //TODO: have a way to authenticate the socket
 
             loop {
                 let message = match ws_rx.lock().await.next().await {

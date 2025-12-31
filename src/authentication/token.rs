@@ -56,8 +56,9 @@ pub fn create_token(user: user::User, creation_time: Option<DateTime<Utc>>) -> R
 pub fn validate_token(token: String) -> Result<user::User, Box<dyn std::error::Error>> {
     // exp (expiration appears to be auto validated)
     let result = decode::<Claims>(&token, &DecodingKey::from_secret(JWT_SECRET.as_bytes()), &Validation::new(HASHING_ALGORITHM))?;
-
-    Ok(result.claims.user)
+    let user = result.claims.user; // make it owned
+    
+    Ok(user)
 }
 
 // tests

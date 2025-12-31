@@ -1,10 +1,15 @@
-use axum::{Json, http::StatusCode, response::IntoResponse, routing::{get, post}};
-use axum::extract::{Path, State};
+//! File containing the API backend 
+
+use axum::{
+    Json, body::Body, extract::{Extension, Path, State}, http::{HeaderMap, Request, StatusCode}, middleware::Next, response::{IntoResponse, Response}, routing::{get, post}
+};
 use log::{info, warn};
 use serde_json::json;
 use tokio::sync::broadcast::Sender;
+use std::sync::Arc;
+use crate::authentication::middleware::authenticate;
 
-use crate::backend::socket_server::{AppState, ChannelMessage};
+use crate::backend::socket_server::{ChannelMessage};
 
 
 #[derive(Debug)]
@@ -12,6 +17,7 @@ pub enum ApiError {
     NotFound,
     BadRequest(String),
     InternalServerError,
+    Unauthorized
 }
 
 impl IntoResponse for ApiError {
@@ -28,6 +34,10 @@ impl IntoResponse for ApiError {
             ApiError::InternalServerError => (
                 StatusCode::INTERNAL_SERVER_ERROR,
                 "Internal Server error, which is to say: not your fault. Contact an Admin.".to_string()
+            ),
+            ApiError::Unauthorized => (
+                StatusCode::UNAUTHORIZED,
+                "either missing a token (x-auth-token) or an invalid token.".to_string()
             )
         };
 
@@ -67,14 +77,14 @@ impl Server {
     
 
     fn create_app(&self, tx: Sender<ChannelMessage>) -> axum::Router {
+
         let state = APIState {
             tx: tx
         };
         axum::Router::new()
-            .route("/api", get(Self::health_check))
-            .route("/api/messages/{channel_name}", post(Self::new_message))
             .route("/api/login", post(crate::authentication::routes::login)) // if I remember right, browsers hate when get requests
-                                                                             // have a body, that's why this is post.
+            .route("/api/messages/{channel_name}", post(Self::new_message))
+            .route("/api", get(Self::health_check))
             .with_state(state)
     }
 
@@ -85,23 +95,24 @@ impl Server {
         }))
     }
     
-    async fn new_message(State(state): State<APIState>, Path(channel_name): Path<String>, body: String) -> Result<(), impl IntoResponse> {
-        if body.is_empty() {return Err(ApiError::BadRequest("body length cannot be 0".to_string()))}
-        let system_user = crate::socket_server::MessageSender {
-                name: String::from("system"),
-                handle: String::from("system"),
-                provider: String::from("")
+    async fn new_message(State(state): State<APIState>, Path(channel_name): Path<String>, headers: HeaderMap, body: String) -> Result<(), impl IntoResponse> {
+        // authenticate the user
+        let user = match authenticate(headers).await {
+            Ok(user) => user,
+            Err(e) => return Err(ApiError::Unauthorized)
         };
+
+        if body.is_empty() {return Err(ApiError::BadRequest("body length cannot be 0".to_string()))}
+
         let message = ChannelMessage {
             channel: channel_name, 
             content: body,
-            sender: system_user
+            sender: user
         };
 
         let _ = state.tx.send(message);
 
         Ok(())
     }
-
 
 }

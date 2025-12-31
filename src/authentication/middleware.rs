@@ -1,30 +1,25 @@
-use std::sync::Arc;
+use axum::{
+    body::Body, http::{HeaderMap, Request, StatusCode}
+};
+use crate::authentication::{token::validate_token, user::User};
 
-use axum::body::Body;
-use axum::http::{Request, StatusCode};
-use axum::middleware::Next;
-use axum::response::Response;
-use axum::extract::Extension;
-use crate::authentication::token::validate_token;
-use crate::authentication::user::User;
 
-pub async fn authenticate(req: Request<Body>, next: Next) -> Result<Response, StatusCode> {
-    let headers = req.headers();
-    if let Some(auth_header) = headers.get("x-auth-token") {
-        if let Ok(token) = auth_header.to_str() {
-            match validate_token(token.to_string()) {
-                Ok(user_obj) => {
-                    let mut req = req; // why does this work :skull:
-                    req.extensions_mut().insert(Arc::new(user_obj));
-                    return Ok(next.run(req).await);
-                },
-                Err(_) => return Err(StatusCode::UNAUTHORIZED),
-            }
+/// (fake) middleware for authenticating clients on the API
+/// TODO: figure out how on earth the axum middleware api is *supposed* to work
+pub async fn authenticate(headers: HeaderMap) -> Result<User, StatusCode> {
+    let token = {
+        let result = match headers.get("x-auth-token") {
+            Some(token) => token.to_str(),
+            None => return Err(StatusCode::UNAUTHORIZED),
+        };
+        match result {
+            Ok(token) => token,
+            Err(_) => return Err(StatusCode::UNAUTHORIZED),
         }
-    }
-    Err(StatusCode::UNAUTHORIZED)
-}
+    };
 
-pub async fn retreieve_user_extension(Extension(user_obj): Extension<Arc<User>>) -> Arc<User> {
-    return user_obj;
+    match validate_token(token.to_string()) {
+        Ok(user_obj) => return Ok(user_obj),
+        Err(_) => return Err(StatusCode::UNAUTHORIZED),
+    }
 }
