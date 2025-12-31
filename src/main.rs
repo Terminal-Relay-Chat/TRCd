@@ -3,6 +3,7 @@ use log::{warn, info};
 use tokio::sync::mpsc::unbounded_channel;
 
 mod backend;
+mod authentication;
 use backend::socket_server; // backend::server serves the api and is instantiated by the socket
                             // server
 
