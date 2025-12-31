@@ -6,6 +6,7 @@ use tokio::sync::broadcast::Sender;
 
 use crate::backend::socket_server::{AppState, ChannelMessage};
 
+
 #[derive(Debug)]
 pub enum ApiError {
     NotFound,
@@ -72,6 +73,8 @@ impl Server {
         axum::Router::new()
             .route("/api", get(Self::health_check))
             .route("/api/messages/{channel_name}", post(Self::new_message))
+            .route("/api/login", post(crate::authentication::routes::login)) // if I remember right, browsers hate when get requests
+                                                                             // have a body, that's why this is post.
             .with_state(state)
     }
 
