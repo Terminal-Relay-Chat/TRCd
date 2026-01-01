@@ -95,7 +95,7 @@ impl Server {
         }))
     }
     
-    async fn new_message(State(state): State<APIState>, Path(channel_name): Path<String>, headers: HeaderMap, body: String) -> Result<(), impl IntoResponse> {
+    async fn new_message(State(state): State<APIState>, Path(channel_name): Path<String>, headers: HeaderMap, body: String) -> Result<&'static str, impl IntoResponse> {
         // authenticate the user
         let user = match authenticate(headers).await {
             Ok(user) => user,
@@ -112,7 +112,7 @@ impl Server {
 
         let _ = state.tx.send(message);
 
-        Ok(())
+        Ok("{\"error\": false}")
     }
 
 }
