@@ -11,9 +11,11 @@ use std::sync::Arc;
 use tokio::sync::{broadcast::{self, Receiver}, mpsc::UnboundedReceiver};
 use futures_util::stream::SplitSink;
 use futures_util::SinkExt;
+use serde_json::json;
 
 use crate::backend::{self, server};
 use crate::authentication::user::User;
+use crate::authentication::token::validate_token;
 
 const MAX_STUPID_MESSAGE: u8 = 10; // to prevent useless data abuse
 
@@ -95,9 +97,50 @@ impl SocketServer {
         ws.on_upgrade(move |socket| Self::handle_socket(socket, address, State(state)))
     }
 
-    async fn handle_socket(sock: WebSocket, ip: SocketAddr, State(state): State<AppState>) {
+    async fn handle_socket(mut sock: WebSocket, ip: SocketAddr, State(state): State<AppState>) {
         info!("Client connected from ip: {}", ip);
         use tokio::sync::Mutex;
+        
+
+        // get the User object from the initial handshake
+        let user: Result<User, ()> = {
+            let mut result: Result<User, ()> = Err(()); // default to error
+
+            // first message is assumed to be a jwt challenge
+            let challenge = match sock.recv().await {
+                Some(v) => v,
+                None => return,
+            };
+            
+            // if it is a valid token return the token, otherwise break out of the socket.
+            if let Ok(message) = challenge {
+                if let Message::Text(token) = message {
+                    if let Ok(token) = validate_token(token.to_string()) {
+                        result = Ok(token);
+                    };
+
+                } 
+            } 
+            
+            result
+        };
+        
+        // finalize the user, otherwise send an error message and disconnect.
+        let user = match user {
+            Ok(user) => user,
+            Err(_) => {
+                let _ = sock.send(Message::Text(json!({
+                    "error": true,
+                    "value": "invalid token"
+                }).to_string().into())).await;
+
+                let _ = sock.send(Message::Close(None)).await;
+                return;
+            }
+        };
+
+
+        // subscribe to the broadcast channel
         let rx = state.tx.subscribe();
         let tx = Arc::new(state.tx);
 
