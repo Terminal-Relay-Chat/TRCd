@@ -3,6 +3,12 @@ name = "trcd"
 version = "0.1.0"
 edition = "2024"
 
+[profile.dev]
+panic = "abort"
+
+[profile.release]
+panic = "abort"
+
 [dependencies]
 axum = { version = "0.8.8", features = ["ws"] }
 chrono = "0.4.42"
