@@ -17,6 +17,7 @@ Expects an `application/json` Body with:
 
 # Messages
 ## POST `/api/messages/{channel name}`
+> This route requires an auth token (obtained through `/api/login`) as the header `x-auth-token`
 **Description:** Send a message to a specified channel based on the path (see the path above where `{channel name}` is)
 Expects a `text/plain` body with the user's message
 **Responds with**:
