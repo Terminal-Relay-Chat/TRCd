@@ -139,6 +139,8 @@ impl SocketServer {
             }
         };
 
+        let _ = sock.send(Message::Text("{\"error\": false, \"value\": \"welcome\"}".to_string().into())).await;
+
 
         // subscribe to the broadcast channel
         let rx = state.tx.subscribe();
