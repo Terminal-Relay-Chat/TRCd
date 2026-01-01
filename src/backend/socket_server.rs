@@ -264,7 +264,7 @@ impl SocketServer {
                         let update = SocketMessage {
                             message_type: UpdateType::MESSAGE,
                             content: m.content,
-                            sender: None
+                            sender: Some(m.sender)
                         };
                         let update = serde_json::to_string(&update)?;
                         ws_tx.lock().await.send(Message::Text(update.into())).await?;

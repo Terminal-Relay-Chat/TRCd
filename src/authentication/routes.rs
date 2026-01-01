@@ -21,7 +21,7 @@ pub async fn login(Json(raw_user): Json<LoginRequest>) -> impl IntoResponse {
     // find the user on the database, if they don't exist return a BAD_REQUEST and warn!
     //TODO: use database to see if the user is valid
     let user = User {
-        user_type: super::user::UserMode::Bot,
+        user_type: super::user::UserMode::User,
         username: raw_user.handle.clone(), // TODO: change from database
         permission_level: super::user::UserPermissions::User, // TODO: change from database
         handle: raw_user.handle,
