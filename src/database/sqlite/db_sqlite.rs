@@ -17,15 +17,15 @@ impl DBCalls for DB_Sqlite {
         todo!()
     }
 
-    fn ban_user(&self, username: String) -> Result<crate::authentication::user::User, &'static str> {
+    fn ban_user(&self, username: &str) -> Result<crate::authentication::user::User, &'static str> {
         todo!()
     }
 
-    async fn fetch_user(&self, username: String) -> Result<UserDBEntry, Box<dyn std::error::Error>> {
+    async fn fetch_user(&self, username: &str) -> Result<UserDBEntry, Box<dyn std::error::Error>> {
         let row = sqlx::query(
-            "SELECT * FROM user WHERE username = $1",
+            "SELECT * FROM Users WHERE username = $1",
         )
-            .bind(&username)
+            .bind(username)
             .fetch_one(&self.conn)
             .await?;
         
@@ -48,7 +48,7 @@ impl DBCalls for DB_Sqlite {
         // combine elements to make a user DB entry
         let result = UserDBEntry { 
                 password_hash: password_hash,
-                username: username,
+                username: username.to_string(),
                 inner_user: user_value 
         };
 
@@ -57,10 +57,10 @@ impl DBCalls for DB_Sqlite {
 
     async fn setup(&self) {
         sqlx::query(
-                "CREATE TABLE IF NOT EXISTS users (
+                "CREATE TABLE IF NOT EXISTS Users (
                     id INTEGER PRIMARY KEY,
                     password_hash TEXT NOT NULL,
-                    username: TEXT NOT NULL,
+                    username TEXT NOT NULL,
                     user_json TEXT NOT NULL
                 )",
             )

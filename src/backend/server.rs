@@ -4,6 +4,7 @@ use axum::{
     Json, body::Body, extract::{Extension, Path, State}, http::{HeaderMap, Request, StatusCode}, middleware::Next, response::{IntoResponse, Response}, routing::{get, post}
 };
 use log::{info, warn};
+use serde::{Serialize, Deserialize};
 use serde_json::json;
 use tokio::sync::broadcast::Sender;
 use std::sync::Arc;
@@ -49,10 +50,31 @@ impl IntoResponse for ApiError {
     }
 }
 
+#[derive(Debug, Serialize, Deserialize)]
+pub struct APIResponse {
+    error: bool,
+    value: String
+}
+impl APIResponse {
+    pub fn serialize(&self) -> String {
+        match serde_json::to_string(&self) {
+            Ok(value) => value,
+            Err(e) => {
+                warn!("Serialization Error: {}", e);
+                "{\"error\": true, \"value\": \"error serializing response, this is very bizzare. Contact an admin.\"}".to_string()
+            }
+        }
+    }
+
+    pub fn new(error: bool, value: &str) -> Self {
+        APIResponse { error: error, value: value.to_string() }
+    }
+}
+
 #[derive(Debug, Clone)]
-struct APIState {
-    tx: Sender<ChannelMessage>,
-    db: DB_Sqlite
+pub struct APIState {
+    pub tx: Sender<ChannelMessage>,
+    pub db: DB_Sqlite
 }
 
 pub struct Server {

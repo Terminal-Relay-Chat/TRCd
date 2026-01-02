@@ -15,9 +15,9 @@ pub struct UserDBEntry {
 
 /// Basic calls for a given database, things like adding and checking users
 pub trait DBCalls {
-    fn fetch_user(&self, username: String) -> impl Future<Output = Result<UserDBEntry, Box<dyn std::error::Error>>>;
+    fn fetch_user(&self, username: &str) -> impl Future<Output = Result<UserDBEntry, Box<dyn std::error::Error>>>;
     fn add_user(&self, new_user: UserDBEntry) -> Result<User, &'static str>;
-    fn ban_user(&self, username: String) -> Result<User, &'static str>;
+    fn ban_user(&self, username: &str) -> Result<User, &'static str>;
 
     /// method to set up a given database, the "proper" way to do this would be migrations, but 
     /// this is a more simple aproach.
