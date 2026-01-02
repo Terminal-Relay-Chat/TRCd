@@ -5,4 +5,5 @@
 //! If you need a more legit storage setup, please open an issue as it is being considered by the
 //! team.
 
-pub mod minimalist; // the minimalist database
+pub mod sqlite;
+pub mod database;

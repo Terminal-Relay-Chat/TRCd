@@ -1,1 +1,4 @@
 /target
+!.gitkeep
+/database/**
+!/database/.gitkeep

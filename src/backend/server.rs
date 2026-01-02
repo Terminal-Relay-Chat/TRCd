@@ -7,8 +7,8 @@ use log::{info, warn};
 use serde_json::json;
 use tokio::sync::broadcast::Sender;
 use std::sync::Arc;
-use crate::authentication::middleware::authenticate;
-
+use crate::{authentication::middleware::authenticate, database::database::DBCalls};
+use crate::database::sqlite::db_sqlite::{DB_Sqlite, DB_DEFAULT_URL};
 use crate::backend::socket_server::{ChannelMessage};
 
 
@@ -51,7 +51,8 @@ impl IntoResponse for ApiError {
 
 #[derive(Debug, Clone)]
 struct APIState {
-    tx: Sender<ChannelMessage>
+    tx: Sender<ChannelMessage>,
+    db: DB_Sqlite
 }
 
 pub struct Server {
@@ -66,7 +67,7 @@ impl Server {
     }
 
     pub async fn run(self, tx: Sender<ChannelMessage>) {
-        let app = Self::create_app(&self, tx);       
+        let app = Self::create_app(&self, tx).await;       
         let listener = tokio::net::TcpListener::bind(format!("0.0.0.0:{}", self.port)).await.expect("failed to bind server");
 
         info!("Server Bound on http://0.0.0.0:{}, to see if it is fully up go to http://0.0.0.0:{}/api", self.port, self.port);
@@ -76,10 +77,14 @@ impl Server {
 
     
 
-    fn create_app(&self, tx: Sender<ChannelMessage>) -> axum::Router {
+    async fn create_app(&self, tx: Sender<ChannelMessage>) -> axum::Router {
+        
+        let db_conn = DB_Sqlite::new(DB_DEFAULT_URL).await;
+        db_conn.setup().await;
 
         let state = APIState {
-            tx: tx
+            tx: tx,
+            db: db_conn
         };
         axum::Router::new()
             .route("/api/login", post(crate::authentication::routes::login)) // if I remember right, browsers hate when get requests
