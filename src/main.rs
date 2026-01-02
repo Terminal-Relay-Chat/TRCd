@@ -8,11 +8,29 @@ mod backend;
 mod authentication;
 mod database;
 
-use backend::socket_server; // backend::server serves the api and is instantiated by the socket
+use backend::socket_server;
+
+use crate::database::database::DBCalls; // backend::server serves the api and is instantiated by the socket
                             // server
 
 #[tokio::main]
 async fn main() {
+    let args: Vec<String> = std::env::args().collect();
+    if args.len() <= 1 {serve().await}
+    // otherwise the bin is being run to manipulate entries
+    
+    new_user().await;
+}
+
+async fn new_user() {
+    use crate::database::sqlite::db_sqlite::{DB_Sqlite, DB_DEFAULT_URL};
+
+    let connection = DB_Sqlite::new(DB_DEFAULT_URL).await;
+    connection.setup().await;
+
+}
+
+async fn serve() {
     env_logger::builder()
         .filter_level(log::LevelFilter::Info)
         .init();
