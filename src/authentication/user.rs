@@ -29,6 +29,5 @@ pub struct User {
     pub handle: String,
     pub provider_site: Option<String>, // this is so people can know how to DM them
     pub banned: bool, // for while the user is stored in memory
-    pub uid: usize,
 }
 impl User {}

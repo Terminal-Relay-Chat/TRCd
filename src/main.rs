@@ -8,10 +8,10 @@ mod backend;
 mod authentication;
 mod database;
 
-use backend::socket_server;
+use backend::socket_server; // backend server instantiated by socket becuse shared state
 
-use crate::database::database::DBCalls; // backend::server serves the api and is instantiated by the socket
-                            // server
+use crate::database::database::DBCalls; 
+                                       
 
 #[tokio::main]
 async fn main() {
@@ -24,10 +24,40 @@ async fn main() {
 
 async fn new_user() {
     use crate::database::sqlite::db_sqlite::{DB_Sqlite, DB_DEFAULT_URL};
+    use crate::database::database::UserDBEntry;
+    use crate::authentication::user::{User, UserPermissions, UserMode};
+    
+    println!("Creating a new user, enter details below:");
+
+    fn user_input(prompt: &str) -> String {
+        let mut input = String::new();
+        println!("{}", prompt);
+
+        std::io::stdin()
+            .read_line(&mut input)
+            .expect("Error reading input");
+
+        input.trim().to_string()
+    }
 
     let connection = DB_Sqlite::new(DB_DEFAULT_URL).await;
     connection.setup().await;
+    
+    let username = user_input("Enter a dank handle (@`your_handle_here`) >");
+    let new_user = UserDBEntry {
+        password_hash: user_input("Enter a secure password >"), //TODO: hash passwords for security
+        username: username.clone(),
+        inner_user: User {
+            user_type: UserMode::User,
+            handle: username,
+            username: user_input("Enter a dank username >"),
+            permission_level: UserPermissions::User,
+            banned: false,
+            provider_site: Some(user_input("Link a website? >"))
+        }
+    };
 
+    dbg!(connection.add_user(new_user).await);
 }
 
 async fn serve() {

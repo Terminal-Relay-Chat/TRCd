@@ -17,10 +17,9 @@ static JWT_SECRET: std::sync::LazyLock<String> = std::sync::LazyLock::new(|| {
 #[derive(Debug, Serialize, Deserialize)]
 pub struct Claims {
    pub exp: usize, // shorthand for expiration, gets auto validated 
-   pub sub: usize, // shorthand for subject, this is just the standard I guess
    pub iat: usize, // needed for validation, shorthand for issued_at
    pub user: user::User
-}
+} // no subject. I'm dumb.
 
 /// function to create a new Json Web Token from a User struct, pass None to the creation_time
 /// argument (creation_time is used only for testing purposes and can cause security problems).
@@ -41,7 +40,6 @@ pub fn create_token(user: user::User, creation_time: Option<DateTime<Utc>>) -> R
     let claims = Claims {
         exp: expiration_time as usize,
         iat: now.timestamp() as usize,
-        sub: user.uid,
         user: user,
     };
 
@@ -74,7 +72,6 @@ fn test_create_valid_jwt() {
         handle: "test_user".to_string(),
         provider_site: None,
         banned: false,
-        uid: 0,
     };
 
     let result = create_token(dummy_user.clone(), None); // cloning because we need to validate it later
@@ -116,7 +113,6 @@ fn test_invalid_jwt() {
         handle: "test_user".to_string(),
         provider_site: None,
         banned: false,
-        uid: 0,
     };
 
     let expired_token = create_token(dummy_user, Some(expired_time)); // a token created in a

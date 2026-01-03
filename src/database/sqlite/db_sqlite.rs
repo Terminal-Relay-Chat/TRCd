@@ -13,8 +13,16 @@ pub struct DB_Sqlite {
     conn: Pool<Sqlite>
 }
 impl DBCalls for DB_Sqlite {
-    fn add_user(&self, new_user: crate::database::database::UserDBEntry) -> Result<crate::authentication::user::User, &'static str> {
-        todo!()
+    async fn add_user(&self, new_user: crate::database::database::UserDBEntry) -> Result<crate::authentication::user::User, Box<dyn std::error::Error>> {
+        let user_json = serde_json::to_string(&new_user.inner_user)?;
+        let _result = sqlx::query("INSERT INTO Users (password_hash, username, user_json) VALUES (?, ?, ?)")
+            .bind(new_user.password_hash)
+            .bind(new_user.username)
+            .bind(user_json)
+            .execute(&self.conn)
+            .await?;
+        
+        Ok(new_user.inner_user)
     }
 
     fn ban_user(&self, username: &str) -> Result<crate::authentication::user::User, &'static str> {
