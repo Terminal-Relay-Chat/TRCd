@@ -44,8 +44,9 @@ async fn new_user() {
     connection.setup().await;
     
     let username = user_input("Enter a dank handle (@`your_handle_here`) >");
+    let password = bcrypt::hash(user_input("Enter a secure password >"), bcrypt::DEFAULT_COST).unwrap();
     let new_user = UserDBEntry {
-        password_hash: user_input("Enter a secure password >"), //TODO: hash passwords for security
+        password_hash: password, //TODO: hash passwords for security
         username: username.clone(),
         inner_user: User {
             user_type: UserMode::User,
