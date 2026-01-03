@@ -1,9 +1,5 @@
 //! Traits and template for any database
 
-use std::process::Output;
-
-use sqlx::error::DatabaseError;
-
 use crate::authentication::user::User;
 
 /// WARNING: this struct contains secure fields. Don't use in insecure contexts
@@ -17,6 +13,8 @@ pub struct UserDBEntry {
 pub trait DBCalls {
     fn fetch_user(&self, username: &str) -> impl Future<Output = Result<UserDBEntry, Box<dyn std::error::Error>>>;
     fn add_user(&self, new_user: UserDBEntry) -> impl Future<Output = Result<User, Box<dyn std::error::Error>>>;
+
+    #[allow(dead_code)] //TODO
     fn ban_user(&self, username: &str) -> Result<User, &'static str>;
 
     /// method to set up a given database, the "proper" way to do this would be migrations, but 
@@ -25,5 +23,7 @@ pub trait DBCalls {
                                                  // to return a Future
 }
 
+#[allow(dead_code)] // this is because the following trait is a potential feature, but
+                    // should still be listed in the api
 /// Advanced calls for a given database, things like storing messages
 pub trait AdvancedDBCalls {}

@@ -1,5 +1,5 @@
 use axum::{
-    body::Body, http::{HeaderMap, Request, StatusCode}
+    http::{HeaderMap, StatusCode}
 };
 use crate::authentication::{token::validate_token, user::User};
 

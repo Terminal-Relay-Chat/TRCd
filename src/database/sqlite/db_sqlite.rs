@@ -1,13 +1,13 @@
 use std::{str::FromStr, time::Duration};
 
 use super::super::database::DBCalls;
-use sqlx::{ConnectOptions, Connection, Pool, Sqlite, SqliteConnection, sqlite::{SqliteConnectOptions, SqlitePoolOptions}, Row};
+use sqlx::{Pool, Sqlite, sqlite::{SqliteConnectOptions, SqlitePoolOptions}, Row};
 use crate::database::database::UserDBEntry;
 use crate::authentication::user::User;
 
 pub const DB_DEFAULT_URL: &'static str = "sqlite://database/TRCd.db";
 
-
+#[allow(non_camel_case_types)] // just because it makes more sense for this struct
 #[derive(Debug, Clone)]
 pub struct DB_Sqlite {
     conn: Pool<Sqlite>
@@ -24,8 +24,9 @@ impl DBCalls for DB_Sqlite {
         
         Ok(new_user.inner_user)
     }
-
+    
     fn ban_user(&self, username: &str) -> Result<crate::authentication::user::User, &'static str> {
+        let _ = username; // to get the lint to shut up
         todo!()
     }
 

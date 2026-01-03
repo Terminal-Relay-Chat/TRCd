@@ -1,18 +1,17 @@
 //! File containing the API backend 
 
 use axum::{
-    Json, body::Body, extract::{Extension, Path, State}, http::{HeaderMap, Request, StatusCode}, middleware::Next, response::{IntoResponse, Response}, routing::{get, post}
+    Json, extract::{Path, State}, http::{HeaderMap, StatusCode}, response::{IntoResponse}, routing::{get, post}
 };
 use log::{info, warn};
 use serde::{Serialize, Deserialize};
 use serde_json::json;
 use tokio::sync::broadcast::Sender;
-use std::sync::Arc;
 use crate::{authentication::middleware::authenticate, database::database::DBCalls};
 use crate::database::sqlite::db_sqlite::{DB_Sqlite, DB_DEFAULT_URL};
 use crate::backend::socket_server::{ChannelMessage};
 
-
+#[allow(dead_code)]
 #[derive(Debug)]
 pub enum ApiError {
     NotFound,
@@ -126,7 +125,7 @@ impl Server {
         // authenticate the user
         let user = match authenticate(headers).await {
             Ok(user) => user,
-            Err(e) => return Err(ApiError::Unauthorized)
+            Err(_e) => return Err(ApiError::Unauthorized)
         };
 
         if body.is_empty() {return Err(ApiError::BadRequest("body length cannot be 0".to_string()))}

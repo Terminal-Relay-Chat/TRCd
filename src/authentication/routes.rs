@@ -1,6 +1,4 @@
-use std::net::SocketAddr;
-
-use axum::{extract::{ConnectInfo, Json, State}, http::StatusCode, response::IntoResponse};
+use axum::{extract::{Json, State}, http::StatusCode};
 use serde::{Serialize, Deserialize};
 use crate::{backend::server::{APIResponse, APIState}, database::database::DBCalls};
 use serde_json::json;

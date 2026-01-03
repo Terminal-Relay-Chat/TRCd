@@ -1,6 +1,4 @@
 use tokio;
-use log::{warn, info};
-use tokio::sync::mpsc::unbounded_channel;
 
 #[forbid(unsafe_code)]
 
@@ -57,8 +55,9 @@ async fn new_user() {
             provider_site: Some(user_input("Link a website? >"))
         }
     };
-
-    dbg!(connection.add_user(new_user).await);
+    
+    connection.add_user(new_user).await.unwrap();
+    println!("successfully created a new user.")
 }
 
 async fn serve() {

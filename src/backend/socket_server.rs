@@ -3,12 +3,12 @@
 use std::{error::Error, net::SocketAddr};
 
 use futures_util::{StreamExt, stream::SplitStream};
-use serde::{Serialize, Deserialize};
+use serde::{Serialize};
 use axum::{extract::{ConnectInfo, State, WebSocketUpgrade, ws::{CloseFrame, WebSocket, close_code::UNSUPPORTED}}, response::IntoResponse, routing::any};
 use axum::extract::ws::Message;
 use log::{info, warn, trace};
 use std::sync::Arc;
-use tokio::sync::{broadcast::{self, Receiver}, mpsc::UnboundedReceiver};
+use tokio::sync::{broadcast::{self, Receiver}};
 use futures_util::stream::SplitSink;
 use futures_util::SinkExt;
 use serde_json::json;
@@ -126,7 +126,7 @@ impl SocketServer {
         };
         
         // finalize the user, otherwise send an error message and disconnect.
-        let user = match user {
+        let _user = match user {
             Ok(user) => user,
             Err(_) => {
                 let _ = sock.send(Message::Text(json!({
@@ -144,7 +144,6 @@ impl SocketServer {
 
         // subscribe to the broadcast channel
         let rx = state.tx.subscribe();
-        let tx = Arc::new(state.tx);
 
         // active channel filters messages server side
         let active_channel = Arc::new(Mutex::new(UserActiveChannel::None));
@@ -155,7 +154,6 @@ impl SocketServer {
             ws_rx: Arc<Mutex<SplitStream<WebSocket>>>,
             ws_tx: Arc<Mutex<SplitSink<WebSocket, Message>>>,
             ip: &SocketAddr,
-            tx: Arc<broadcast::Sender<ChannelMessage>>,
             active_channel: Arc<Mutex<UserActiveChannel>>
         ) -> Result<(), Box<dyn Error>> {
             let mut stupid_message_counter: u8 = 0; // prevent useless message abuse
@@ -285,7 +283,7 @@ impl SocketServer {
 
         // handle messages from the socket and updates from the broadcast group
         tokio::select! {
-            res = handle_sock_recv(ws_rx.clone(), ws_tx.clone(), &ip, tx, active_channel.clone()) => {
+            res = handle_sock_recv(ws_rx.clone(), ws_tx.clone(), &ip, active_channel.clone()) => {
                 if let Err(e) = res {
                     warn!("{:?}", e);
                 }
