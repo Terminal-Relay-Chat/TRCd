@@ -55,5 +55,5 @@ pub async fn login(State(state): State<APIState>, Json(body): Json<LoginRequest>
         Ok(token) => token,
     };
     
-    Ok(json!({"error": false, "token": token}).to_string())
+    Ok(json!({"error": false, "value": token}).to_string())
 }

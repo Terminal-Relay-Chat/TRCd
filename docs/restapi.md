@@ -8,7 +8,7 @@ Expects an `application/json` Body with:
     - the user's password
 
 **Responds with**:
-- "token": String
+- "value": String
     - a json web token to authenticate with secure routes.
 - "error": boolean
     - this (currently will only show if there wasn't an error, but if it is present and not false then the request was successfull)
