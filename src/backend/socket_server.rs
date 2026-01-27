@@ -212,6 +212,7 @@ impl SocketServer {
 
                         // send a response to the user
                         let success_response = serde_json::json!({
+                            "message_type": UpdateType::MESSAGE,
                             "error": false,
                             "content": "successfully changed channel",
                             "value": Some(UserActiveChannel::String(t.to_string()))
