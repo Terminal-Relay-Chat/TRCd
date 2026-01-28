@@ -10,7 +10,9 @@ JWT_SECRET=">>your_secret_here (any password)<<" cargo run
 ```
 
 # Docker 
-> This will require manual setup, I am not a docker wizard.
-make a copy of the compose-example.yaml and edit it to meet your goals.
-run `docker compose up -d`
+> This will require manual setup, I am not a docker wizard. Here are some basic instructions:
+Make sure you have docker installed and have permission to use it!
+1. Make a copy of the compose-example.yaml and edit it to meet your goals. `cp compose-example.yaml compose.yaml`
+2. Make a `.env` file containing a jwt secret. `echo "type in a secret phrase (no spaces!)"; read && echo "JWT_SECRET=$REPLY" > ./.env`
+3. run `docker compose up -d` (run as a background process)
 

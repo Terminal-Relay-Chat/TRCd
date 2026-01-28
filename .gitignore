@@ -4,3 +4,5 @@
 !/database/.gitkeep
 compose.*
 docker-compose.*
+.env
+*env*
