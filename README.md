@@ -8,3 +8,9 @@ the `JWT_SECRET` environment variable **must** be set for functionality, the eas
 ```
 JWT_SECRET=">>your_secret_here (any password)<<" cargo run
 ```
+
+# Docker 
+> This will require manual setup, I am not a docker wizard.
+make a copy of the compose-example.yaml and edit it to meet your goals.
+run `docker compose up -d`
+
